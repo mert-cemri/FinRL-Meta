@@ -56,7 +56,7 @@ class tgym(gym.Env):
     def __init__(
         self,
         df,
-        env_config_file="./neo_finrl/env_fx_trading/config/gdbusd-test-1.json",
+        env_config_file="./meta/env_fx_trading/config/gdbusd-test-1.json"
     ) -> None:
         assert df.ndim == 2
         super(tgym, self).__init__()
@@ -162,16 +162,17 @@ class tgym(gym.Env):
                     (x - _action) * self.cf.symbol(self.assets[i], "profit_taken_max")
                 ) + self.cf.symbol(self.assets[i], "stop_loss_max")
                 self.ticket_id += 1
+                
                 if self.cf.symbol(self.assets[i], "limit_order"):
                     transaction = {
-                        "Ticket": self.ticket_id,
-                        "Symbol": self.assets[i],
-                        "ActionTime": self._t,
+                        "Ticket": self.ticket_id, ## 1,2,3,4
+                        "Symbol": self.assets[i], ## GBPUSD
+                        "ActionTime": self._t, ## 1,2,3,5,6,...
                         "Type": _action,
                         "Lot": 1,
                         "ActionPrice": self._l if _action == 0 else self._h,
                         "SL": self.cf.symbol(self.assets[i], "stop_loss_max"),
-                        "PT": _profit_taken,
+                        "PT":  _profit_taken,
                         "MaxDD": 0,
                         "Swap": 0.0,
                         "CloseTime": "",
@@ -230,7 +231,7 @@ class tgym(gym.Env):
                     _sl_price = tr["ActionPrice"] - tr["SL"] / _point
                     _pt_price = tr["ActionPrice"] + tr["PT"] / _point
                     if done:
-                        p = (self._c - tr["ActionPrice"]) * _point
+                        p = (self._c - tr["ActionPrice"]) * _point ##this is profit
                         self._manage_tranaction(tr, p, self._c, status=2)
                         _total_reward += p
                     elif self._l <= _sl_price:
@@ -372,7 +373,8 @@ class tgym(gym.Env):
         v = []
         for a in self.assets:
             subset = self.df.query(
-                f'{self.asset_col} == "{a}" & {self.time_col} == "{_dt}"'
+                #f'{self.asset_col} == "{a}" & {self.time_col} == "{_dt}"'
+                f'{self.asset_col} == "{a}" & {self.time_col} == {_dt}'
             )
             assert not subset.empty
             v += subset.loc[_dt, cols].tolist()
@@ -435,6 +437,7 @@ class tgym(gym.Env):
             print("plotting...")
             p = TradingChart(self.df, self.transaction_history)
             p.plot()
+
 
     def close(self):
         pass

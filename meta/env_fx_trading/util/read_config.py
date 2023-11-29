@@ -11,7 +11,7 @@ class EnvConfig:
 
     def __init__(
         self,
-        config_file="./neo_finrl/env_fx_trading/config/gdbusd-test-1.json",
+        config_file="./meta/env_fx_trading/config/gdbusd-test-1.json",
     ):
         self.config = {}
         with open(config_file) as j:

@@ -55,9 +55,15 @@ class tgym(gym.Env):
 
     def __init__(
         self,
-        df,
-        env_config_file="./neo_finrl/env_fx_trading/config/gdbusd-test-1.json",
+        original_df,
+        period=1,
+        env_config_file="./meta/env_fx_trading/config/gdbusd-test-1.json"
     ) -> None:
+        if period == 1:
+            df = original_df
+        else:
+            df = original_df.iloc[::period]
+
         assert df.ndim == 2
         super(tgym, self).__init__()
         self.cf = EnvConfig(env_config_file)
@@ -72,8 +78,31 @@ class tgym(gym.Env):
             self.cf.env_parameters("log_filename")
             + datetime.datetime.now().strftime("%Y%m%d%H%M%S")
             + ".csv"
-        )
+        )        
+        if period > 1:
+            self.agent1_present = True
+        else:
+            self.agent1_present = False
+        self.period = period
 
+        period = period -1
+        if  self.agent1_present:
+            df = original_df
+            #df = original_df.iloc[::period]
+        else:
+            df = original_df
+
+        #print(period,self.agent1_present)
+        #assert False
+        self.agent_1_actions = []
+        self.agent_1_actions = np.array(self.agent_1_actions)
+        if self.agent1_present:
+            self.agent_1_actions = self.group_list(original_df["agent_1_actions"].values.tolist(),period)
+        self.agent_1_rewards = []
+        self.agent_1_rewards = np.array(self.agent_1_rewards)
+        if self.agent1_present:
+            self.agent_1_rewards = self.group_list(original_df["agent_1_rewards"].values.tolist(),period)
+            
         self.df = df
         self.df["_time"] = df[self.time_col]
         self.df["_day"] = df["weekday"]
@@ -112,7 +141,13 @@ class tgym(gym.Env):
         self.reward_range = (-np.inf, np.inf)
         self.action_space = spaces.Box(low=0, high=3, shape=(len(self.assets),))
         # first two 3 = balance,current_holding, max_draw_down_pct
-        _space = 3 + len(self.assets) + len(self.assets) * len(self.observation_list)
+
+        self.num_agents = 2
+
+        if period == 1:
+            _space = 3 + len(self.assets) + len(self.assets) * ( len(self.observation_list))
+        else:
+            _space = 3 + len(self.assets) + len(self.assets) * ( len(self.observation_list) + period * 2)
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(_space,))
         print(
             f"initial done:\n"
@@ -120,14 +155,17 @@ class tgym(gym.Env):
             f"assets:{self.assets}\n "
             f"time serial: {min(self.dt_datetime)} -> {max(self.dt_datetime)} length: {len(self.dt_datetime)}"
         )
-        self._seed()
+        self.seed()
 
-    def _seed(self, seed=None):
+    def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
     def _history_df(self, i):
         pass
+
+    def group_list(self, input_list, group_size):
+        return [input_list[i:i+group_size] for i in range(0, len(input_list), group_size)]
 
     def _take_action(self, actions, done):
         # action = math.floor(x),
@@ -162,16 +200,17 @@ class tgym(gym.Env):
                     (x - _action) * self.cf.symbol(self.assets[i], "profit_taken_max")
                 ) + self.cf.symbol(self.assets[i], "stop_loss_max")
                 self.ticket_id += 1
+                
                 if self.cf.symbol(self.assets[i], "limit_order"):
                     transaction = {
-                        "Ticket": self.ticket_id,
-                        "Symbol": self.assets[i],
-                        "ActionTime": self._t,
+                        "Ticket": self.ticket_id, ## 1,2,3,4
+                        "Symbol": self.assets[i], ## GBPUSD
+                        "ActionTime": self._t, ## 1,2,3,5,6,...
                         "Type": _action,
                         "Lot": 1,
                         "ActionPrice": self._l if _action == 0 else self._h,
                         "SL": self.cf.symbol(self.assets[i], "stop_loss_max"),
-                        "PT": _profit_taken,
+                        "PT":  _profit_taken,
                         "MaxDD": 0,
                         "Swap": 0.0,
                         "CloseTime": "",
@@ -230,7 +269,7 @@ class tgym(gym.Env):
                     _sl_price = tr["ActionPrice"] - tr["SL"] / _point
                     _pt_price = tr["ActionPrice"] + tr["PT"] / _point
                     if done:
-                        p = (self._c - tr["ActionPrice"]) * _point
+                        p = (self._c - tr["ActionPrice"]) * _point ##this is profit
                         self._manage_tranaction(tr, p, self._c, status=2)
                         _total_reward += p
                     elif self._l <= _sl_price:
@@ -338,11 +377,16 @@ class tgym(gym.Env):
             self.max_draw_down_pct = abs(sum(self.max_draw_downs) / self.balance * 100)
 
             # no action anymore
+
+        if self.agent1_present:
+            other_agent_info = self.agent_1_actions[self.current_step] + self.agent_1_rewards[self.current_step]
+        else:
+            other_agent_info = []
         obs = (
             [self.balance, self.max_draw_down_pct]
             + self.current_holding
             + self.current_draw_downs
-            + self.get_observation(self.current_step)
+            + self.get_observation(self.current_step) + other_agent_info
         )
         return (
             np.array(obs).astype(np.float32),
@@ -372,7 +416,8 @@ class tgym(gym.Env):
         v = []
         for a in self.assets:
             subset = self.df.query(
-                f'{self.asset_col} == "{a}" & {self.time_col} == "{_dt}"'
+                #f'{self.asset_col} == "{a}" & {self.time_col} == "{_dt}"'
+                f'{self.asset_col} == "{a}" & {self.time_col} == {_dt}'
             )
             assert not subset.empty
             v += subset.loc[_dt, cols].tolist()
@@ -407,12 +452,28 @@ class tgym(gym.Env):
         self.log_header = True
         self.visualization = False
 
+        if self.agent1_present:
+            other_agent_info = self.agent_1_actions[self.current_step] + self.agent_1_rewards[self.current_step]
+        
+            print("++++++++++++++++++++++++++++++++++++++++++",self.agent1_present,self.period)
+            print(other_agent_info)
+            #print(self.agent_1_actions)
+            print(self.agent_1_actions[self.current_step])
+            print(self.agent_1_rewards[self.current_step])
+            print("+++++++++++++++++++++++++++++++")
+        else:
+            #other_agent_info = [0] * (self.period+1)
+            other_agent_info = []
+        init_list = [self.balance, self.max_draw_down_pct] + [0] * len(self.assets) + [0] * len(self.assets)+ self.get_observation(self.current_step)
+        print(len(init_list + other_agent_info))
         _space = (
             [self.balance, self.max_draw_down_pct]
             + [0] * len(self.assets)
             + [0] * len(self.assets)
-            + self.get_observation(self.current_step)
+            + self.get_observation(self.current_step) + other_agent_info
         )
+        obs = np.array(_space).astype(np.float32)
+        print("Observation spaces:",obs.shape, other_agent_info) 
         return np.array(_space).astype(np.float32)
 
     def render(self, mode="human", title=None, **kwargs):
@@ -435,6 +496,7 @@ class tgym(gym.Env):
             print("plotting...")
             p = TradingChart(self.df, self.transaction_history)
             p.plot()
+
 
     def close(self):
         pass

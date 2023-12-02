@@ -26,8 +26,8 @@ config.USE_TIME_ZONE_SELFDEFINED = 1
 config.TIME_ZONE_SELFDEFINED = 'US/Eastern'
 
 dp = DataProcessor(data_source="yahoofinance",
-                   start_date = '2017-01-01',
-                   end_date = '2017-06-01',
+                   start_date = '2004-01-01',
+                   end_date = '2019-01-01',
                    time_interval='1D')
 
 symbol="GBPUSD"
@@ -105,27 +105,27 @@ def train(env, agent, df, if_vix = True,**kwargs):
             # print(f'Trained model saved in {model_name}')
             model1 = PPO.load("./data/models/GBPUSD-multiagent_implementation_1-multiagent1-week-20231201113051.zip")
 
-            dp = DataProcessor(data_source="yahoofinance",
-                    start_date = '2017-01-01',
-                    end_date = '2017-06-01',
-                    time_interval='1D')
-            dp.run(ticker_list = [f'{symbol}=X'], technical_indicator_list = config.INDICATORS, if_vix=False)
-            df = dp.dataframe
-            df['dt'] = pd.to_datetime(df['time'])
-            #df['dt'] = pd.to_datetime(df['time'], unit='1D', origin='2017-01-01')
-            df['time'] = df['index']
-            df['symbol'] = symbol
-            #df['time'] = df['dt']
-            df.index = df['dt']
-            df['minute'] = df['dt'].dt.minute
-            df['hour'] = df['dt'].dt.hour
-            df['weekday'] = df['dt'].dt.dayofweek
-            df['week'] = df['dt'].dt.isocalendar().week
-            df['month'] = df['dt'].dt.month
-            df['year'] = df['dt'].dt.year
-            df['day'] = df['dt'].dt.day
-            df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close"}, inplace=True)
-            df = df.drop(df.index[0])
+            # dp = DataProcessor(data_source="yahoofinance",
+            #         start_date = '2004-01-01',
+            #         end_date = '2019-01-01',
+            #         time_interval='1D')
+            # dp.run(ticker_list = [f'{symbol}=X'], technical_indicator_list = config.INDICATORS, if_vix=False)
+            # df = dp.dataframe
+            # df['dt'] = pd.to_datetime(df['time'])
+            # #df['dt'] = pd.to_datetime(df['time'], unit='1D', origin='2017-01-01')
+            # df['time'] = df['index']
+            # df['symbol'] = symbol
+            # #df['time'] = df['dt']
+            # df.index = df['dt']
+            # df['minute'] = df['dt'].dt.minute
+            # df['hour'] = df['dt'].dt.hour
+            # df['weekday'] = df['dt'].dt.dayofweek
+            # df['week'] = df['dt'].dt.isocalendar().week
+            # df['month'] = df['dt'].dt.month
+            # df['year'] = df['dt'].dt.year
+            # df['day'] = df['dt'].dt.day
+            # df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close"}, inplace=True)
+            # df = df.drop(df.index[0])
             t = tgym(df)
             action1_list = []
             reward1_list = []
@@ -138,13 +138,13 @@ def train(env, agent, df, if_vix = True,**kwargs):
                 #print(info["Close"])
                 action1_list.append(action)
                 reward1_list.append(rewards)
-            df['agent_1_actions'] = [0]+action1_list
-            df['agent_1_rewards'] = [0]+reward1_list 
-            #action1_list = 
-            #assert False
+            print(len(action1_list))
+            df['agent_1_actions'] = action1_list + [0]
+            df['agent_1_rewards'] = reward1_list + [0]
+            print("Inference for agent 1 is done")
             ##alter df or observation space
             print("New environment now")
-            t = tgym(df,period=2)
+            t = tgym(df,period=2,marl=True)
             #print(t.period)
             #assert False
             env_train_2 = DummyVecEnv([lambda:t])
@@ -185,20 +185,33 @@ assert False
 # # PPO Models: ./data/models/GBPUSD-ppo-week-20231129120408 ./data/models/GBPUSD-week-20231126131448, ./data/models/GBPUSD-week-20231123194718.zip
 # # A2C Models: ./data/models/GBPUSD-a2c-week-20231129121005 ./data/models/GBPUSD-week-20231126185131, ./data/models/GBPUSD-week-20231126205306
 # # DDPG Models: ./data/models/GBPUSD-week-20231129114537
+
+# # MARL-2 models: ./data/models/GBPUSD-multiagent_implementation_1-multiagent2-week-20231201152118 (freq =1) 
+# # Longer MARLS:
+# # agent1: ./data/models/GBPUSD-multiagent_implementation_1-multiagent1-week-20231201152852
+# # agent2: ./data/models/GBPUSD-multiagent_implementation_1-multiagent2-week-20231201153150
 print("we are predicting now")
 
 symbol="GBPUSD"
 
 
 dp = DataProcessor(data_source="yahoofinance",
-                   start_date = '2017-01-01',
-                   end_date = '2018-01-01',
-                   time_interval='1D')
+                start_date = '2004-01-01',
+                end_date = '2019-01-01',
+                time_interval='1D')
 
 dp.run(ticker_list = [f'{symbol}=X'], technical_indicator_list = config.INDICATORS, if_vix=False)
 df = dp.dataframe
-df['dt'] = pd.to_datetime(df['time'], unit='D', origin='2017-01-01')
+df = df.drop(df.index[0])
+print(df)
+print("Here it is")
+#print(df.head())
 
+#df['time'] = df['time'] + ' 00:00'
+#df['dt'] = pd.to_datetime(df['time'], format='%Y.%m.%d %H:%M')
+df['dt'] = pd.to_datetime(df['time'])
+#df['dt'] = pd.to_datetime(df['time'], unit='1D', origin='2017-01-01')
+df['time'] = df['index']
 df['symbol'] = symbol
 #df['time'] = df['dt']
 df.index = df['dt']
@@ -214,7 +227,7 @@ df['day'] = df['dt'].dt.day
 df.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close"}, inplace=True)
 t = tgym(df)
 
-model_name=f'./data/models/GBPUSD-ppo-week-20231129120408.zip'
+model_name=f'./data/models/GBPUSD-multiagent_implementation_1-multiagent1-week-20231201152852.zip'
 model = PPO.load(model_name)
 print("model loaded")
 
@@ -223,20 +236,25 @@ obs = t.reset()
 t.current_step=0
 done = False
 
-reward_list = []
+action1_list = []
+reward1_list = []
 balance_list = []
 while not done:
     action, _states = model.predict(obs)
     obs, rewards, done, info = t.step(action)
     #print(info["Close"])
     balance_list.append(t.balance)
-    reward_list.append(rewards)
+    reward1_list.append(rewards)
+    action1_list.append(action)
 
-reward_list_ppo = reward_list
-balance_list_ppo = balance_list
+df['agent_1_actions'] = [0]+action1_list
+df['agent_1_rewards'] = [0]+reward1_list
+t = tgym(df,period=1,marl=True)
 
-model_name=f'./data/models/GBPUSD-week-20231129114537.zip'
-model = DDPG.load(model_name)
+balance_list_agent1 = balance_list
+
+model_name=f'./data/models/GBPUSD-multiagent_implementation_1-multiagent2-week-20231201153150.zip'
+model = PPO.load(model_name)
 print("model loaded")
 
 start_time = time.time()
@@ -256,9 +274,9 @@ while not done:
 
 plt.figure()
 print(os.getcwd())
-#plt.plot(reward_list_ppo)
+plt.plot(balance_list_agent1)
 plt.plot(balance_list)
-#plt.legend(["ppo", "a2c"])
-plt.savefig(f'trial_figures/forex_{symbol}_balance_ddpg.jpg')
+plt.legend(["ppo", "agent 2"])
+plt.savefig(f'figures/forex_{symbol}_balance_comp_marl.jpg')
 print(f"--- running time: {(time.time() - start_time)}---")
 

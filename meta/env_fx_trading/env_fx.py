@@ -144,7 +144,7 @@ class tgym(gym.Env):
 
         self.num_agents = 2
 
-        if period == -1:
+        if not marl:
             _space = 3 + len(self.assets) + len(self.assets) * ( len(self.observation_list))
         else:
             _space = 3 + len(self.assets) + len(self.assets) * ( len(self.observation_list) + period * 2)
@@ -379,7 +379,7 @@ class tgym(gym.Env):
             # no action anymore
 
         if self.agent1_present:
-            other_agent_info = self.agent_1_actions[self.current_step] + self.agent_1_rewards[self.current_step]
+            other_agent_info = [self.agent_1_actions[self.current_step] , self.agent_1_rewards[self.current_step]]
         else:
             other_agent_info = []
         obs = (
@@ -387,7 +387,7 @@ class tgym(gym.Env):
             + self.current_holding
             + self.current_draw_downs
             + self.get_observation(self.current_step) + other_agent_info
-        )
+        ) ##original state space is 18 dimensional
         return (
             np.array(obs).astype(np.float32),
             reward,
@@ -467,16 +467,15 @@ class tgym(gym.Env):
         # init_list = [self.balance, self.max_draw_down_pct] + [0] * len(self.assets) + [0] * len(self.assets)+ self.get_observation(self.current_step)
         # if self.agent1_present:
             # print(len(init_list + other_agent_info))
-        _space = (
+        obs = (
             [self.balance, self.max_draw_down_pct]
             + [0] * len(self.assets)
             + [0] * len(self.assets)
             + self.get_observation(self.current_step) + other_agent_info
         )
-        obs = np.array(_space).astype(np.float32)
         # if self.agent1_present:
         #     print("Observation spaces:",obs.shape, other_agent_info) 
-        return np.array(_space).astype(np.float32)
+        return np.array(obs).astype(np.float32)
 
     def render(self, mode="human", title=None, **kwargs):
         # Render the environment to the screen
